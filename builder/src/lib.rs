@@ -35,6 +35,15 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 self.current_dir = Some(dir);
                 self
             }
+            pub fn build(&mut self) -> Result<Command, Box<dyn std::error::Error>> {
+                Ok(#name {
+                    executable: self.executable.clone().ok_or("executable not found")?,
+                    args: self.args.clone().ok_or("args not found")?,
+                    env: self.env.clone().ok_or("env not found")?,
+                    current_dir: self.current_dir.clone().ok_or("current_dir not found")?,
+                })
+
+            }
         }
         impl #name {
             pub  fn builder() -> #builder_ident {
