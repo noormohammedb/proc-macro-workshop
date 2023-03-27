@@ -7,9 +7,38 @@ use syn::{parse_macro_input, DeriveInput};
 #[proc_macro_derive(Builder)]
 pub fn derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
+    // eprintln!("{:#?}", ast);
     let name = &ast.ident;
     let builder_name = format!("{}Builder", name);
     let builder_ident = syn::Ident::new(&builder_name, name.span());
+
+    // let fields = if let syn::Data::Struct(syn::DataStruct {
+    //     fields: syn::Fields::Named(syn::FieldsNamed { ref named, .. }),
+    //     ..
+    // }) = ast.data
+    // {
+    //     named
+    // } else {
+    //     unimplemented!();
+    // };
+
+    // let fields = match ast.data {
+    //     syn::Data::Struct(syn::DataStruct {
+    //         fields: syn::Fields::Named(syn::FieldsNamed { named, .. }),
+    //         ..
+    //     }) => named,
+    //     _ => unimplemented!(),
+    // };
+
+    // let fields = syn::DataStruct{
+    //     fields: syn::Fields::Named(syn::FieldsNamed{ref named, ..}),
+    //     ..
+    // }
+    // let ty = ast.data;
+    // let fields = ast.data.Fields.named as syn::FieldsNamed;
+
+    // let fields = syn::DataStruct(ast.data).fields.named as syn::FieldsNamed;
+    // eprintln!("{:#?}", ast.data);
 
     quote!(
         pub struct #builder_ident {
@@ -36,6 +65,9 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 self
             }
             pub fn build(&mut self) -> Result<Command, Box<dyn std::error::Error>> {
+
+
+
                 Ok(#name {
                     executable: self.executable.clone().ok_or("executable not found")?,
                     args: self.args.clone().ok_or("args not found")?,
