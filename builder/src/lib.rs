@@ -30,17 +30,31 @@ pub fn derive(input: TokenStream) -> TokenStream {
     //     _ => unimplemented!(),
     // };
 
-    let ty_is_option = |f: &syn::Field| {
-        if let syn::Type::Path(p) = &f.ty {
-            return p.path.segments.len() == 1 && p.path.segments[0].ident == "Option";
+    let ty_is_option = |ty: &syn::Type| -> Option<&syn::Type> {
+        if let syn::Type::Path(p) = ty {
+            if !p.path.segments.len() == 1 && p.path.segments[0].ident == "Option" {
+                return None;
+            }
+            if let syn::PathArguments::AngleBracketed(ref inner_ty) = p.path.segments[0].arguments {
+                if inner_ty.args.len() != 1 {
+                    return None;
+                }
+
+                // let foo = inner_ty.args[0];
+                let inner_ty = inner_ty.args.first().unwrap();
+
+                if let syn::GenericArgument::Type() = inner_ty.value() {
+                    Some(t)
+                }
+            }
         }
-        false
+        None
     };
 
     let optionized = fields.iter().map(|fld| {
         let name = &fld.ident;
         let ty = &fld.ty;
-        if ty_is_option(&fld) {
+        if ty_is_option(&ty).is_some() {
             quote! { #name: #ty }
         } else {
             quote! { #name: std::option::Option<#ty> }
@@ -50,7 +64,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
     let methods = fields.iter().map(|fld| {
         let name = &fld.ident;
         let ty = &fld.ty;
-        if ty_is_option(&fld) {
+        if ty_is_option(&ty).is_some() {
             quote! {
                 fn #name(&mut self, #name: #ty) -> &mut Self{
                     self.#name = #name;
@@ -69,7 +83,8 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
     let build_fields = fields.iter().map(|fld| {
         let name = &fld.ident;
-        if ty_is_option(fld) {
+        let ty = &fld.ty;
+        if ty_is_option(&ty).is_some() {
             quote! {
                 #name: self.#name.clone()
             }
