@@ -12,15 +12,15 @@ pub fn derive(input: TokenStream) -> TokenStream {
     let builder_name = format!("{}Builder", name);
     let builder_ident = syn::Ident::new(&builder_name, name.span());
 
-    // let fields = if let syn::Data::Struct(syn::DataStruct {
-    //     fields: syn::Fields::Named(syn::FieldsNamed { ref named, .. }),
-    //     ..
-    // }) = ast.data
-    // {
-    //     named
-    // } else {
-    //     unimplemented!();
-    // };
+    let fields = if let syn::Data::Struct(syn::DataStruct {
+        fields: syn::Fields::Named(syn::FieldsNamed { ref named, .. }),
+        ..
+    }) = ast.data
+    {
+        named
+    } else {
+        unimplemented!();
+    };
 
     // let fields = match ast.data {
     //     syn::Data::Struct(syn::DataStruct {
@@ -30,22 +30,96 @@ pub fn derive(input: TokenStream) -> TokenStream {
     //     _ => unimplemented!(),
     // };
 
-    // let fields = syn::DataStruct{
-    //     fields: syn::Fields::Named(syn::FieldsNamed{ref named, ..}),
-    //     ..
-    // }
-    // let ty = ast.data;
-    // let fields = ast.data.Fields.named as syn::FieldsNamed;
+    let ty_is_option = |f: &syn::Field| {
+        if let syn::Type::Path(p) = &f.ty {
+            return p.path.segments.len() == 1 && p.path.segments[0].ident == "Option";
+        }
+        false
+    };
 
-    // let fields = syn::DataStruct(ast.data).fields.named as syn::FieldsNamed;
-    // eprintln!("{:#?}", ast.data);
+    let optionized = fields.iter().map(|fld| {
+        let name = &fld.ident;
+        let ty = &fld.ty;
+        if ty_is_option(&fld) {
+            quote! { #name: #ty }
+        } else {
+            quote! { #name: std::option::Option<#ty> }
+        }
+    });
+
+    let methods = fields.iter().map(|fld| {
+        let name = &fld.ident;
+        let ty = &fld.ty;
+        if ty_is_option(&fld) {
+            quote! {
+                fn #name(&mut self, #name: #ty) -> &mut Self{
+                    self.#name = #name;
+                    self
+                }
+            }
+        } else {
+            quote! {
+                fn #name(&mut self, #name: #ty) -> &mut Self{
+                    self.#name = Some(#name);
+                    self
+                }
+            }
+        }
+    });
+
+    let build_fields = fields.iter().map(|fld| {
+        let name = &fld.ident;
+        // let t = ;
+        // let t = match fld.ty {
+        //     syn::Type::Path(
+        //         TypePath{syn::Path{
+        //             segments
+        //         }}
+        //     )}  => _
+        //     _ => _
+        // };
+
+        let type_segment = match &fld.ty {
+            syn::Type::Path(typePath) => match typePath {
+                // syn::Path { segments, .. } => segments[0],
+                syn::TypePath { path, .. } => match path {
+                    syn::Path { segments, .. } => segments,
+                    _ => unimplemented!(),
+                },
+                _ => unimplemented!(),
+            },
+            _ => unimplemented!(),
+        };
+
+        let foo = type_segment.iter().last();
+        // let bar = foo?.ident.ident;
+
+        if type_segment.len() == 1 && type_segment.iter().last().unwrap().ident == "Option" {
+            let expr = quote! {
+                #name: self.#name.clone()
+            };
+            return expr;
+        }
+
+        if ty_is_option(fld) {
+            quote! {
+                #name: self.#name.clone()
+            }
+        } else {
+            quote! {
+                #name: self.#name.clone().ok_or(concat!(stringify!(#name), "is not set"))?
+            }
+        }
+    });
+
+    let build_empty = fields.iter().map(|fld| {
+        let name = &fld.ident;
+        quote! { #name: None }
+    });
 
     quote!(
         pub struct #builder_ident {
-            executable: Option<String>,
-            args: Option<Vec<String>>,
-            env: Option<Vec<String>>,
-            current_dir: Option<String>,
+            #(#optionized,)*
         }
         impl #builder_ident {
             fn executable(&mut self, executable: String) -> &mut Self {
@@ -69,10 +143,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
 
                 Ok(#name {
-                    executable: self.executable.clone().ok_or("executable not found")?,
-                    args: self.args.clone().ok_or("args not found")?,
-                    env: self.env.clone().ok_or("env not found")?,
-                    current_dir: self.current_dir.clone().ok_or("current_dir not found")?,
+                    #(#build_fields,)*
                 })
 
             }
@@ -80,10 +151,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
         impl #name {
             pub  fn builder() -> #builder_ident {
                 #builder_ident {
-                    executable: None,
-                    args: None,
-                    env: None,
-                    current_dir: None,
+                    #(#build_empty,)*
                 }
             }
         }
