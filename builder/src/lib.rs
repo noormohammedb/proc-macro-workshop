@@ -69,38 +69,6 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
     let build_fields = fields.iter().map(|fld| {
         let name = &fld.ident;
-        // let t = ;
-        // let t = match fld.ty {
-        //     syn::Type::Path(
-        //         TypePath{syn::Path{
-        //             segments
-        //         }}
-        //     )}  => _
-        //     _ => _
-        // };
-
-        let type_segment = match &fld.ty {
-            syn::Type::Path(typePath) => match typePath {
-                // syn::Path { segments, .. } => segments[0],
-                syn::TypePath { path, .. } => match path {
-                    syn::Path { segments, .. } => segments,
-                    _ => unimplemented!(),
-                },
-                _ => unimplemented!(),
-            },
-            _ => unimplemented!(),
-        };
-
-        let foo = type_segment.iter().last();
-        // let bar = foo?.ident.ident;
-
-        if type_segment.len() == 1 && type_segment.iter().last().unwrap().ident == "Option" {
-            let expr = quote! {
-                #name: self.#name.clone()
-            };
-            return expr;
-        }
-
         if ty_is_option(fld) {
             quote! {
                 #name: self.#name.clone()
@@ -122,26 +90,8 @@ pub fn derive(input: TokenStream) -> TokenStream {
             #(#optionized,)*
         }
         impl #builder_ident {
-            fn executable(&mut self, executable: String) -> &mut Self {
-                self.executable = Some(executable);
-                self
-            }
-            fn args(&mut self, arg: Vec<String>) -> &mut Self {
-                self.args = Some(arg);
-                self
-            }
-            fn env(&mut self, envs: Vec<String>) -> &mut Self {
-                self.env = Some(envs);
-                self
-            }
-            fn current_dir(&mut self, dir: String) -> &mut Self {
-                self.current_dir = Some(dir);
-                self
-            }
+            #(#methods)*
             pub fn build(&mut self) -> Result<Command, Box<dyn std::error::Error>> {
-
-
-
                 Ok(#name {
                     #(#build_fields,)*
                 })
