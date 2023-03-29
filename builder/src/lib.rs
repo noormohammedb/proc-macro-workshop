@@ -31,7 +31,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
     // };
 
     let ty_is_option = |ty: &syn::Type| -> Option<&syn::Type> {
-        if let syn::Type::Path(p) = ty {
+        if let syn::Type::Path(ref p) = ty {
             if !p.path.segments.len() == 1 && p.path.segments[0].ident == "Option" {
                 return None;
             }
@@ -40,11 +40,8 @@ pub fn derive(input: TokenStream) -> TokenStream {
                     return None;
                 }
 
-                // let foo = inner_ty.args[0];
-                let inner_ty = inner_ty.args.first().unwrap();
-
-                if let syn::GenericArgument::Type() = inner_ty.value() {
-                    Some(t)
+                if let syn::GenericArgument::Type(ref t) = &inner_ty.args[0] {
+                    return Some(t);
                 }
             }
         }
