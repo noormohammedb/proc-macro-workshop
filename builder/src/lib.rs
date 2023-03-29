@@ -11,61 +11,6 @@ pub fn derive(input: TokenStream) -> TokenStream {
     let builder_name = format!("{}Builder", name);
     let builder_ident = syn::Ident::new(&builder_name, name.span());
 
-    let fields = match &ast.data {
-        syn::Data::Struct(syn::DataStruct { fields, .. }) => match fields {
-            syn::Fields::Named(syn::FieldsNamed { named, .. }) => named,
-            _ => unimplemented!(),
-        },
-        _ => unimplemented!(),
-    };
-
-    // let named_fields = match ast.data {
-    //     syn::Data::Struct(syn::DataStruct {
-    //         fields: syn::Fields::Named(syn::FieldsNamed { ref named, .. }),
-    //         ..
-    //     }) => named,
-    //     _ => todo!(),
-    // };
-
-    // let fields = match ast.data {
-    //     syn::Data::Struct(syn::DataStruct { fields, .. }) => match fields {
-    //         syn::Fields::Named(syn::FieldsNamed { ref named, .. }) => named,
-    //         _ => unimplemented!(),
-    //     },
-    //     _ => unimplemented!(),
-    // };
-
-    let fields_iter = fields.iter();
-
-    let optionized = fields.iter().map(|fld| {
-        let name = &fld.ident;
-        let ty = &fld.ty;
-        quote! { #name: std::option::Option<#ty> }
-    });
-
-    let methods = fields.iter().map(|fld| {
-        let name = &fld.ident;
-        let ty = &fld.ty;
-        quote! {
-            fn #name(&mut self, #name: #ty) -> &mut Self{
-                self.#name = Some(#name);
-                self
-            }
-        }
-    });
-
-    let build_fields = fields.iter().map(|fld| {
-        let name = &fld.ident;
-        quote! {
-            #name: self.#name.clone().ok_or(concat!(stringify!(#name), "is not set"))?
-        }
-    });
-
-    let build_empty = fields.iter().map(|fld| {
-        let name = &fld.ident;
-        quote! { #name: None }
-    });
-
     let fields = if let syn::Data::Struct(syn::DataStruct {
         fields: syn::Fields::Named(syn::FieldsNamed { ref named, .. }),
         ..
@@ -76,17 +21,9 @@ pub fn derive(input: TokenStream) -> TokenStream {
         unimplemented!();
     };
 
-    // let fields = match ast.data {
-    //     syn::Data::Struct(syn::DataStruct {
-    //         fields: syn::Fields::Named(syn::FieldsNamed { named, .. }),
-    //         ..
-    //     }) => named,
-    //     _ => unimplemented!(),
-    // };
-
-    fn ty_is_option(ty: &syn::Type) -> Option<&syn::Type> {
-        if let syn::Type::Path(p) = ty {
-            if !p.path.segments.len() == 1 && p.path.segments[0].ident == "Option" {
+    fn ty_inner_type(ty: &syn::Type) -> Option<&syn::Type> {
+        if let syn::Type::Path(ref p) = ty {
+            if p.path.segments.len() != 1 || p.path.segments[0].ident != "Option" {
                 return None;
             }
             if let syn::PathArguments::AngleBracketed(ref inner_ty) = p.path.segments[0].arguments {
@@ -94,7 +31,6 @@ pub fn derive(input: TokenStream) -> TokenStream {
                     return None;
                 }
 
-                // let foo = inner_ty.args[0];
                 let inner_ty = inner_ty.args.first().unwrap();
 
                 if let syn::GenericArgument::Type(t) = inner_ty {
@@ -103,12 +39,12 @@ pub fn derive(input: TokenStream) -> TokenStream {
             }
         }
         None
-    };
+    }
 
     let optionized = fields.iter().map(|fld| {
         let name = &fld.ident;
         let ty = &fld.ty;
-        if ty_is_option(&ty).is_some() {
+        if let Some(inner_ty) = ty_inner_type(&ty) {
             quote! { #name: #ty }
         } else {
             quote! { #name: std::option::Option<#ty> }
@@ -118,10 +54,10 @@ pub fn derive(input: TokenStream) -> TokenStream {
     let methods = fields.iter().map(|fld| {
         let name = &fld.ident;
         let ty = &fld.ty;
-        if ty_is_option(&ty).is_some() {
+        if let Some(inner_ty) = ty_inner_type(&ty) {
             quote! {
-                fn #name(&mut self, #name: #ty) -> &mut Self{
-                    self.#name = #name;
+                fn #name(&mut self, #name: #inner_ty) -> &mut Self{
+                    self.#name = Some(#name);
                     self
                 }
             }
@@ -138,7 +74,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
     let build_fields = fields.iter().map(|fld| {
         let name = &fld.ident;
         let ty = &fld.ty;
-        if ty_is_option(&ty).is_some() {
+        if ty_inner_type(&ty).is_some() {
             quote! {
                 #name: self.#name.clone()
             }
