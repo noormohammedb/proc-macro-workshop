@@ -39,7 +39,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
         let set_method = if let Some(inner_ty) = ty_inner_type("Option", &ty) {
             quote! {
                 fn #name(&mut self, #name: #inner_ty) -> &mut Self{
-                    self.#name = Some(#name);
+                    self.#name = std::option::Option::Some(#name);
                     self
                 }
             }
@@ -53,7 +53,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
         } else {
             quote! {
                 fn #name(&mut self, #name: #ty) -> &mut Self{
-                    self.#name = Some(#name);
+                    self.#name = std::option::Option::Some(#name);
                     self
                 }
             }
@@ -88,9 +88,9 @@ pub fn derive(input: TokenStream) -> TokenStream {
     let build_empty = fields.iter().map(|fld| {
         let name = &fld.ident;
         if builder_of(fld).is_some() {
-            return quote! { #name: Vec::new() };
+            return quote! { #name: std::vec::Vec::new() };
         } else {
-            return quote! { #name: None };
+            return quote! { #name: std::option::Option::None };
         }
     });
 
@@ -100,8 +100,8 @@ pub fn derive(input: TokenStream) -> TokenStream {
         }
         impl #builder_ident {
             #(#methods_builder)*
-            pub fn build(&mut self) -> Result<Command, Box<dyn std::error::Error>> {
-                Ok(#name {
+            pub fn build(&mut self) -> std::result::Result<Command, std::boxed::Box<dyn std::error::Error>> {
+                std::result::Result::Ok(#name {
                     #(#build_fields,)*
                 })
 
@@ -140,7 +140,6 @@ fn ty_inner_type<'a>(wrapper: &'a str, ty: &'a syn::Type) -> Option<&'a syn::Typ
 
 fn builder_of(fld: &syn::Field) -> Option<&syn::MetaList> {
     for atter in &fld.attrs {
-        let name = &fld.ident;
         let segments = &atter.path().segments;
         if segments.len() == 1 && segments[0].ident == "builder" {
             if let syn::Meta::List(meta_list) = &atter.meta {
