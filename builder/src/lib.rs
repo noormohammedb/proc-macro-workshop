@@ -155,14 +155,33 @@ fn extend_methods_builder(fld: &syn::Field) -> Option<(bool, proc_macro2::TokenS
     let meta_list = builder_of(fld)?;
     let mut tokens = meta_list.tokens.clone().into_iter();
     match tokens.next().unwrap() {
-        TokenTree::Ident(ref ide) => assert_eq!(ide, "each"),
+        TokenTree::Ident(ref ide) => {
+            if ide != "each" {
+                return Some((
+                    false,
+                    syn::Error::new_spanned(
+                        &fld.attrs[0].meta,
+                        "expected `builder(each = \"...\")`",
+                    )
+                    .to_compile_error(),
+                ));
+            }
+        }
         tt => panic!("expected 'each', found {}", tt),
     }
     match tokens.next().unwrap() {
-        TokenTree::Punct(ref pnc) => assert_eq!(pnc.as_char(), '='),
+        TokenTree::Punct(ref pnc) => {
+            if pnc.as_char() != '=' {
+                return Some((
+                    false,
+                    syn::Error::new_spanned(pnc, format!("expected '=' found {}", pnc.as_char()))
+                        .to_compile_error(),
+                ));
+            }
+        }
         tt => panic!("expected '=', found {}", tt),
     }
-    let last_token = tokens.next().unwrap();
+    let last_token = meta_list.tokens.clone().into_iter().nth(2).unwrap();
     let literal_ident = match last_token {
         TokenTree::Literal(lit) => lit,
         tt => panic!("expected string, found {}", tt),
