@@ -40,7 +40,12 @@ impl Into<proc_macro2::TokenStream> for SeqMacroInput {
 }
 
 impl SeqMacroInput {
-  fn expand2(&self, tt: proc_macro2::TokenTree, i: isize) -> proc_macro2::TokenTree {
+  fn expand2(
+    &self,
+    tt: proc_macro2::TokenTree,
+    rest: &mut proc_macro2::token_stream::IntoIter,
+    i: isize,
+  ) -> proc_macro2::TokenTree {
     match tt {
       proc_macro2::TokenTree::Group(g) => {
         let mut expanded = proc_macro2::Group::new(g.delimiter(), self.expand(g.stream(), i));
@@ -54,15 +59,37 @@ impl SeqMacroInput {
         proc_macro2::TokenTree::Literal(lit)
       }
 
+      proc_macro2::TokenTree::Ident(mut ident) => {
+        let mut peek = rest.clone();
+        match (peek.next(), peek.next()) {
+          (
+            Some(proc_macro2::TokenTree::Punct(ref pnc)),
+            Some(proc_macro2::TokenTree::Ident(ref ident2)),
+          ) if pnc.as_char() == '~' && ident2 == &self.ident => {
+            ident = proc_macro2::Ident::new(&format!("{}{}", ident, i), ident.span());
+            *rest = peek.clone();
+            match peek.next() {
+              Some(proc_macro2::TokenTree::Punct(ref pnc2)) if pnc2.as_char() == '~' => {
+                *rest = peek.clone();
+              }
+              _ => {}
+            }
+          }
+          _ => {}
+        }
+        proc_macro2::TokenTree::Ident(ident)
+      }
       tt => tt,
     }
   }
 
   fn expand(&self, stream: proc_macro2::TokenStream, i: isize) -> proc_macro2::TokenStream {
-    stream
-      .into_iter()
-      .map(|tt| self.expand2(tt.into(), i))
-      .collect()
+    let mut out = proc_macro2::TokenStream::new();
+    let mut tts = stream.into_iter();
+    while let Some(tt) = tts.next() {
+      out.extend(std::iter::once(self.expand2(tt, &mut tts, i)));
+    }
+    out
   }
 }
 
